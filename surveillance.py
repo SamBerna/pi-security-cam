@@ -5,24 +5,27 @@ from picamera2 import Picamera2
 
 # email stuff -------------------------------------------------
 import smtplib, ssl
-port = 465  #default port
-last_email_sent = time.time()
+from email.message import EmailMessage
+last_email_sent = 0
 email_send_rate = 300
 
 email_to = "sberna@colostate.edu"  #change this to your email
 email_from = "cs370groupemail@gmail.com"
-email_password = "cs370emailpassword"
+email_password = "xeawrfrwpbgyqpxs"
 
-email_message = """\
-Subject: Security Alert
-
-The camera has registered someone at your door."""
+email_body = "Camera detected a body at your door, view the video on your desktop"
+em = EmailMessage()
+em['From'] = email_from
+em['To'] = email_to
+em['Subject'] = "Camera Alert"
+em.set_content(email_body)
+context = ssl.create_default_context()
 # -------------------------------------------------------------
 
 # Configure Camera
 piCam = Picamera2() # Create picamera object
 piCam.preview_configuration.main.size=(640,480) # Setting up camera configuration
-piCam.preview_configuration.controls.FrameRate = 20
+#piCam.preview_configuration.controls.FrameRate = 20
 piCam.preview_configuration.main.format="RGB888"
 piCam.preview_configuration.align()
 piCam.configure("preview")
@@ -47,7 +50,7 @@ while True:
     
     if (counter >= RATE_TO_CHECK_DETECTION):
         gray = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) # Convert image to grayscale
-        bodies = face_cascade.detectMultiScale(gray, 1.3, 5)
+        bodies = body_cascade.detectMultiScale(gray, 1.3, 5)
         counter = 0
     else:
         counter += 1
@@ -69,15 +72,15 @@ while True:
                 print("Stopped recording.")
                 #Send email when video stops --------------------------------------------------
                 if ((time.time() - last_email_sent) > email_send_rate):
-                    context = ssl.create_default_context()
-                    with smtplib.SMTP_SSL("smpt.gmail.com", port, context=context) as server:
+                    with smtplib.SMTP_SSL("smpt.gmail.com", context=context) as server:
                         server.login(email_from, email_password)
-                        server.sendmail(email_from, email_to, email_message)
+                        server.sendmail(email_from, email_to, em.as_string())
+                        server.quit()
                     last_email_sent = time.time()
                 # ------------------------------------------------------------------------------
             else:
-            timer_started = True
-            detection_stopped_time = time.time()
+                timer_started = True
+                detection_stopped_time = time.time()
     
     if detection:    
         out.write(frame) # Write frame to video if face or body is in frame
@@ -90,5 +93,4 @@ while True:
     if cv2.waitKey(1) == ord('q'): # Press q to terminate
         break
 
-out.release()
 cv2.destroyAllWindows()
